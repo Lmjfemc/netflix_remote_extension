@@ -43,38 +43,31 @@ Go EXE 안에 휴대폰 웹페이지가 포함되어 있습니다. 외부 웹 �
 
 ### 1. 배포 파일 받기
 
-[Releases](https://github.com/Lmjfemc/netflix_remote_extension/releases)에서 **`netflix-lan-remote-v0.2.0-windows-amd64.zip`**을 내려받아 계속 사용할 폴더에 압축을 풉니다.
+[Releases](https://github.com/Lmjfemc/netflix_remote_extension/releases)에서 최신 Windows x64 전체 ZIP을 내려받아 압축을 **모두** 풉니다. v0.2.1 파일명은 `netflix-lan-remote-v0.2.1-windows-amd64.zip`입니다.
 
-```text
-extension/                 Chrome에 로드할 확장프로그램
- dist/netflix-remote.exe    웹페이지가 내장된 Go 보조 서버
-install-host.ps1            최초 연결 등록
-uninstall-host.ps1          연결 등록 제거
-allow-lan.ps1               선택적 Private LAN 방화벽 설정
-README.md                  설치·사용 안내
-THIRD_PARTY_NOTICES.md      내장 라이브러리 라이선스
-```
+`install.cmd`, `uninstall.cmd`, `native-host.json`, `dist/netflix-remote.exe`, `extension/`이 함께 있어야 합니다. 사용자는 **Go·Node·PowerShell을 설치하거나 실행할 필요가 없습니다.**
 
-사용자는 **Go나 Node를 설치할 필요가 없습니다.** EXE는 직접 더블클릭하는 앱이 아니라 Chrome이 시작하는 보조 프로그램입니다.
+### 2. install.cmd 더블클릭 — 최초 설치 및 업데이트
 
-### 2. Chrome에 확장프로그램 로드
+리모컨이 실행 중이면 먼저 확장 팝업의 **끄기**를 누릅니다. 압축을 푼 폴더의 **install.cmd**를 더블클릭하고 성공 메시지를 확인합니다. 일반 사용자 권한으로 실행하세요.
 
-1. Chrome 주소창에 `chrome://extensions`를 입력합니다.
+설치 파일은 다음 위치에 복사됩니다.
+
+`%LOCALAPPDATA%\NetflixRemote`
+
+현재 사용자 계정의 Chrome Native Messaging 등록을 추가합니다. 확장 ID는 고정되어 **복사·입력할 필요가 없습니다.** 다운로드 폴더를 옮기거나 삭제해도 설치된 프로그램은 유지됩니다. PowerShell 실행 정책, 방화벽, 네트워크 분류는 변경하지 않습니다.
+
+### 3. 설치된 확장프로그램 로드
+
+1. Chrome에서 `chrome://extensions`를 엽니다.
 2. **개발자 모드**를 켜고 **압축해제된 확장 프로그램을 로드합니다**를 선택합니다.
-3. 압축을 푼 파일의 `extension` 폴더를 선택합니다.
-4. `Netflix LAN Remote`의 확장 ID를 복사합니다. 팝업의 **최초 설치 안내**에서도 볼 수 있습니다.
+3. 폴더 선택창 주소에 `%LOCALAPPDATA%\NetflixRemote\extension`을 입력하고 해당 폴더를 선택합니다.
 
-확장프로그램 ZIP은 압축을 풀어 로드하는 배포물입니다. Chrome Web Store 게시본이나 서명된 CRX가 아닙니다.
+**v0.2.0에서 이전:** 기존 확장에서 리모컨을 끄고, 기존 확장을 제거한 뒤 위 폴더를 로드하세요. 고정 ID 적용으로 ID가 한 번 바뀌며 기존 확장 설정은 자동 이전되지 않습니다. 이전 프로젝트 폴더는 자동 삭제하지 않습니다.
 
-### 3. 보조 프로그램 등록 — 최초 한 번
+**v0.2.1 이후 업데이트:** 새 ZIP을 풀고 install.cmd를 다시 실행한 뒤 Chrome 확장 카드의 새로고침과 Netflix 탭 새로고침을 수행합니다. 다운로드 폴더의 extension을 따로 로드하지 마세요.
 
-압축을 푼 폴더에서 PowerShell을 열어 실행합니다. 따옴표 안은 **자신의 확장 ID**로 바꿉니다.
-
-```powershell
-.\install-host.ps1 -ExtensionId '여기에_32자리_확장_ID'
-```
-
-현재 Windows 사용자 계정의 Chrome Native Messaging 등록만 추가합니다. 지정한 확장프로그램만 보조 프로그램에 연결할 수 있습니다. 등록은 EXE의 절대 경로를 참조하므로 폴더를 옮기면 다시 실행해야 합니다. Chromium 계열의 다른 브라우저는 호스트 등록 위치가 달라 추가 설정이 필요합니다. 제공 스크립트는 **Google Chrome용**입니다.
+고정 ID는 `kpklnbjdnjbkficgfkjnodofpganejpf`입니다. manifest의 공개키는 unpacked ID를 유지하기 위한 것으로 코드 서명이나 보안 인증이 아닙니다. Chrome Web Store 게시 시에는 게시본 ID와 호스트 허용 목록을 함께 검토해야 합니다. 제공 설치 파일은 **Google Chrome용**이며 다른 Chromium 브라우저에는 별도 등록이 필요합니다.
 
 ### 4. 리모컨 켜고 휴대폰 연결
 
@@ -100,7 +93,7 @@ PC의 `http://localhost:8787/pc`에서도 QR을 확인할 수 있습니다. 여�
 - 신뢰하는 **Private 네트워크**에서는 관리자 PowerShell에서 `./allow-lan.ps1`을 실행할 수 있습니다. 이 EXE, TCP 8787, LocalSubnet, Private 프로필에 한정된 규칙을 추가합니다.
 - 네트워크가 **Public**이면 위 스크립트는 접속을 허용하지 않습니다. 네트워크 환경에 맞는 정책을 직접 확인하세요. 스크립트가 네트워크 분류를 바꾸거나 방화벽을 끄지는 않습니다.
 - 포트가 사용 중이면 다른 서버를 종료하고 다시 켭니다. 기존 Node 프로토타입과 Go 서버를 동시에 8787 포트에서 실행할 수 없습니다.
-- `Specified native messaging host not found`는 확장 ID·등록 경로·EXE 존재 여부를 확인합니다.
+- `Specified native messaging host not found`는 install.cmd를 다시 실행하고 설치된 확장 폴더와 EXE 존재 여부를 확인합니다.
 - 확장을 새로고침한 뒤 연결이 안 되면 Netflix 탭도 새로고침합니다.
 
 ## 개발·빌드
@@ -155,13 +148,13 @@ Netflix 전용 로직은 네트워크 및 UI와 분리되어 있습니다. `lega
 - 카탈로그는 PC 페이지에 로드된 카드 기준이며 Netflix 전체 카탈로그 API를 제공하지 않습니다.
 - LAN HTTP/WebSocket은 암호화되지 않습니다. 신뢰하는 로컬 네트워크용이며 인터넷 포트 포워딩은 사용하지 마세요.
 - HTTP 기반 모바일 웹입니다. 완전한 오프라인·설치형 PWA를 보장하지 않습니다.
-- Windows EXE는 코드 서명되지 않은 프로토타입입니다.
+- Windows EXE는 코드 서명되지 않은 프로토타입입니다. CMD 설치는 PowerShell 실행 정책 의존성만 없앱니다. 다운로드 경고, SmartScreen, Smart App Control 또는 조직 정책으로 실행이 제한될 수 있습니다. 보안 설정을 자동으로 해제하지 않습니다.
 
 네트워크 소스 주소·Host·Origin을 검사하고, 페어링 시도 제한과 임의의 세션 토큰을 사용합니다. Netflix 자격증명을 수집하거나 별도 로그인하지 않습니다. 외부 연결 서버나 시청 기록 저장소도 없습니다.
 
 ## 제거
 
-리모컨을 끈 뒤 `./uninstall-host.ps1`을 실행하면 Native Messaging 등록을 제거합니다. Chrome의 확장프로그램은 별도로 제거하세요. 선택적 방화벽 규칙을 추가했다면 관리자 PowerShell에서 다음 명령으로 제거합니다.
+리모컨을 끄고 Chrome에서 확장프로그램을 제거한 뒤, 배포 ZIP 또는 `%LOCALAPPDATA%\NetflixRemote`의 `uninstall.cmd`를 실행하세요. 설치된 EXE·확장 파일과 이 설치 경로를 가리키는 Native Messaging 등록을 제거합니다. 관련 없는 파일과 다른 경로를 가리키는 등록은 보존합니다. 창을 닫은 뒤 남은 제거 스크립트와 폴더는 직접 삭제할 수 있습니다. 선택적 방화벽 규칙을 추가했다면 관리자 PowerShell에서 다음 명령으로 제거합니다.
 
 ```powershell
 Remove-NetFirewallRule -Name NetflixLANRemote-Go

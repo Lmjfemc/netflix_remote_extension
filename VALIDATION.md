@@ -1,4 +1,14 @@
-# Validation — v0.2.0
+# Validation — v0.2.1
+
+## Installation update
+
+- Fixed extension ID is derived from the manifest public key and matches the host allowlist.
+- Pure CMD scripts tested with a separate test registry key and fixture LocalAppData, including Korean, spaces, ampersand, exclamation mark and parentheses in the path.
+- Verified install, repeated install/upgrade, rejection of incomplete payloads, uninstall, repeated uninstall, preservation of unrelated files and preservation of registrations pointing elsewhere.
+- Existing live Chrome registration was not changed by these tests.
+- Registry-writing fixture test: `$env:TEST_INSTALLER='1'; node --test test/install.test.js`. It is skipped in the default suite and requires permission to write its isolated HKCU test key.
+- The v0.2.1 extension migration has not yet been loaded into the user's live Chrome profile. Browser-download security prompts and a fresh Windows machine remain unverified.
+- The playback observations below are from v0.2.0; this release changes packaging and installation, not playback logic.
 
 This is a working local prototype. Passing tests do not imply compatibility with every Netflix title, browser update, or physical phone/network.
 

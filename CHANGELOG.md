@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1
+
+- Fixed unpacked extension ID; no manual extension ID entry during installation.
+- Pure CMD install/uninstall replaces the PowerShell host registration scripts.
+- Per-user installation copies the helper and extension into `%LOCALAPPDATA%\NetflixRemote`.
+- Updates reuse the same installed path; uninstall preserves unrelated files and other host registrations.
+- Optional Private-LAN firewall script now targets the installed helper.
+- Existing 0.2.0 users must stop/remove the old extension and load the installed extension once.
+- This changes installation convenience, not Windows executable trust: the helper remains unsigned.
+
 ## 0.2.0
 
 First GitHub release of the Windows / Chrome LAN prototype.

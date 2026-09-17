@@ -1,0 +1,7 @@
+{
+  "name": "com.netflixlan.remote",
+  "description": "Netflix LAN Remote local helper",
+  "path": "netflix-remote.exe",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://kpklnbjdnjbkficgfkjnodofpganejpf/"]
+}

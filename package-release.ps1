@@ -19,7 +19,7 @@ try {
     New-Item -ItemType Directory -Force (Join-Path $stage 'dist') | Out-Null
     Copy-Item -LiteralPath extension -Destination $stage -Recurse
     Copy-Item -LiteralPath $env:NATIVE_HOST_EXE -Destination (Join-Path $stage 'dist/netflix-remote.exe')
-    $docs = @('install-host.ps1','uninstall-host.ps1','allow-lan.ps1','README.md','VALIDATION.md','CHANGELOG.md','LICENSE','THIRD_PARTY_NOTICES.md')
+    $docs = @('install.cmd','uninstall.cmd','native-host.json','allow-lan.ps1','README.md','VALIDATION.md','CHANGELOG.md','LICENSE','THIRD_PARTY_NOTICES.md')
     foreach ($file in $docs) { Copy-Item -LiteralPath $file -Destination $stage }
 
     $bundle = "$output/netflix-lan-remote-v$version-windows-amd64.zip"

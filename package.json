@@ -1,6 +1,6 @@
 {
   "name": "netflix-lan-remote",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Netflix-only LAN phone remote with a Chrome extension and Go native host",
   "scripts": {
     "test": "node --test",
