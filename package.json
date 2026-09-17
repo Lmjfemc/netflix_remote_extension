@@ -1,0 +1,23 @@
+{
+  "name": "netflix-lan-remote",
+  "version": "0.2.0",
+  "description": "Netflix-only LAN phone remote with a Chrome extension and Go native host",
+  "scripts": {
+    "test": "node --test",
+    "test:adapter": "node --test test/adapter.test.js",
+    "test:native": "node --test test/native-host.test.js",
+    "start:legacy": "node legacy/server.js",
+    "format": "prettier --write extension public test legacy package.json",
+    "format:check": "prettier --check extension public test legacy package.json"
+  },
+  "keywords": [],
+  "author": "Lmjfemc",
+  "license": "ISC",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "prettier": "3.6.2",
+    "qrcode": "^1.5.4",
+    "ws": "^8.21.3"
+  }
+}
