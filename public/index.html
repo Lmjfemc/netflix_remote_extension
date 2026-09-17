@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#111114" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" />
+    <link rel="stylesheet" href="/style.css" />
+    <title>Netflix Remote</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a class="brand" href="/">N<span>REMOTE</span></a
+        ><span id="status" class="pill">Not paired</span>
+      </header>
+      <section id="pair" class="panel">
+        <p class="eyebrow">YOUR PHONE. YOUR BIG SCREEN.</p>
+        <h1>Settle in.</h1>
+        <p>
+          Control Netflix on your PC from here. Connect to the same Wi-Fi, then
+          enter the code shown on your PC.
+        </p>
+        <form id="pairForm">
+          <label for="code">Pairing code</label
+          ><input
+            id="code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            placeholder="000000"
+            required
+          /><button class="primary">Connect to PC</button>
+        </form>
+      </section>
+      <div id="remote" hidden>
+        <section class="panel player">
+          <p class="eyebrow">NOW ON YOUR PC</p>
+          <h1 id="title">Open Netflix</h1>
+          <p id="detail">Waiting for playback</p>
+          <label class="sr" for="seek">Playback position</label
+          ><input id="seek" type="range" min="0" max="100" value="0" step="1" />
+          <div class="times">
+            <span id="elapsed">0:00</span><span id="duration">0:00</span>
+          </div>
+          <div class="transport">
+            <button id="back" aria-label="Back 10 seconds">
+              ↶<small>10 seconds</small></button
+            ><button id="play" class="primary play" aria-label="Play">▶</button
+            ><button id="forward" aria-label="Forward 10 seconds">
+              ↷<small>10 seconds</small>
+            </button>
+          </div>
+          <div class="volume">
+            <button id="mute">Mute</button
+            ><label class="sr" for="volume">Volume</label
+            ><input
+              id="volume"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value="1"
+            /><span id="volumeValue">100%</span>
+          </div>
+          <div class="actions">
+            <button id="fullscreen">Full screen</button
+            ><button id="next">Next episode →</button
+            ><button id="skip">Skip intro</button
+            ><button id="recap">줄거리 건너뛰기</button>
+          </div>
+          <label class="toggle"
+            ><span
+              >Automatically skip intros<small
+                >When Netflix offers a skip button</small
+              ></span
+            ><input id="auto" type="checkbox" role="switch"
+          /></label>
+        </section>
+        <section class="catalog">
+          <div class="section-head">
+            <h2>Pick your next watch</h2>
+            <button id="browse">Refresh from PC</button>
+          </div>
+          <p class="hint">
+            Search and refresh open the Netflix catalog on your PC, stopping
+            current playback.
+          </p>
+          <form id="searchForm" class="search">
+            <label class="sr" for="query">Search Netflix</label
+            ><input
+              id="query"
+              placeholder="Search Netflix"
+              maxlength="100"
+              required
+            /><button>Search</button>
+          </form>
+          <div id="cards" class="cards"></div>
+          <p id="empty" class="hint">
+            Open the Netflix home page on your PC to load titles.
+          </p>
+        </section>
+        <footer>
+          Local network only · Video stays on your PC
+          <button id="disconnect">Unpair</button>
+        </footer>
+      </div>
+      <p id="message" role="status" aria-live="polite"></p>
+    </main>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

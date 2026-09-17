@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><link rel="stylesheet" href="/style.css" /><title>
+    Pair Netflix Remote
+  </title>
+  <main class="setup">
+    <header>
+      <a class="brand" href="/pc">N<span>REMOTE</span></a
+      ><span class="pill" id="status">Checking extension</span>
+    </header>
+    <section class="panel">
+      <p class="eyebrow">LEAVE THE KEYBOARD BEHIND</p>
+      <h1>Your couch companion.</h1>
+      <p>Scan with your phone camera on the same Wi-Fi.</p>
+      <img id="qr" class="qr" alt="QR code to pair your phone" />
+      <p>Or open the address below and enter</p>
+      <div id="code" class="pair-code"></div>
+      <div id="links"></div>
+      <p id="help"></p>
+    </section>
+    <ol>
+      <li>Keep this local server running.</li>
+      <li>
+        Load the <b>extension</b> folder at chrome://extensions (Developer mode
+        → Load unpacked).
+      </li>
+      <li>Refresh Netflix in your logged-in Chrome window.</li>
+      <li>Scan and control. Video stays on your PC.</li>
+    </ol>
+    <p>
+      Pairing resets when the server restarts. Use a trusted private Wi-Fi
+      network.
+    </p>
+  </main>
+  <script src="/pc.js" type="module"></script>
+</html>
