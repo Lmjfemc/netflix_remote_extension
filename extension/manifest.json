@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Netflix LAN Remote",
-  "version": "0.2.0",
+  "version": "0.2.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5NbR/zOG/5wH9q21v4453qDPD+16To2p1f2d0jCYbQtSFc4l8i3iL7mUcUK1LXAFExp6oKIoZNw9pD4pijBSfpM3zUSU1EfDyL/tJ69lfgctqx5fJfeSdkMzk5jjErIV2CxtjyxG8U7PlOahE8ao5JgKwl1MQU58ELOccTkuZVPLJizyDjDDSJeBRfmrUAv22MxN4dhVWGwUaXT58BESrnYEvwUcl92C65MXpQAuO0CK7PtP/vynh7YiS4+OLzrAD/+Iuvh/ycFONPMpz3tU/087nmHivp2JmELLlJy4Qi9qtDuZVs0flPl3dQx0UUGvVbP9v+ZDNIsyfm/bE/2jdQIDAQAB",
   "description": "A Netflix-only second-screen remote on your local network.",
   "minimum_chrome_version": "116",
   "permissions": ["storage", "tabs", "nativeMessaging"],
