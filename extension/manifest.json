@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Netflix LAN Remote",
+  "version": "0.2.0",
+  "description": "A Netflix-only second-screen remote on your local network.",
+  "minimum_chrome_version": "116",
+  "permissions": ["storage", "tabs", "nativeMessaging"],
+  "host_permissions": ["https://www.netflix.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.netflix.com/*"],
+      "js": ["netflix-adapter.js"],
+      "world": "MAIN",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.netflix.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

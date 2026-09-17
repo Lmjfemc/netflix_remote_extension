@@ -1,0 +1,57 @@
+body {
+  font: 14px system-ui;
+  background: #151519;
+  color: #f5f5f5;
+  width: 310px;
+  padding: 18px;
+  margin: 0;
+}
+h2 {
+  font-size: 21px;
+  margin-top: 0;
+}
+p {
+  line-height: 1.5;
+}
+.buttons {
+  display: flex;
+  gap: 10px;
+}
+button {
+  border: 0;
+  border-radius: 8px;
+  padding: 12px 20px;
+  background: #e50914;
+  color: white;
+  font: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+#stop {
+  background: #38383e;
+}
+a {
+  color: #ff8790;
+  overflow-wrap: anywhere;
+}
+#qr {
+  border-radius: 10px;
+}
+#code {
+  letter-spacing: 3px;
+  font-size: 22px;
+}
+#error {
+  color: #ff8790;
+  overflow-wrap: anywhere;
+}
+code {
+  overflow-wrap: anywhere;
+}
+details {
+  margin-top: 20px;
+  color: #bfbfc8;
+}

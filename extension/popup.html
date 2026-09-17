@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>Netflix LAN Remote</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h2>Netflix LAN Remote</h2>
+    <p>같은 Wi-Fi의 휴대폰으로 Netflix를 제어하세요.</p>
+    <div class="buttons">
+      <button id="start">리모컨 켜기</button
+      ><button id="stop" disabled>끄기</button>
+    </div>
+    <p id="status" role="status">상태 확인 중…</p>
+    <p id="error" role="alert"></p>
+    <section id="pairing" hidden>
+      <img id="qr" alt="휴대폰 연결 QR 코드" width="220" height="220" />
+      <p>연결 코드 <strong id="code"></strong></p>
+      <div id="links"></div>
+    </section>
+    <details>
+      <summary>최초 설치 안내</summary>
+      <p>보조 서버 설치 시 아래 확장 ID를 사용하세요.</p>
+      <code id="extensionId"></code>
+      <p>
+        서버가 켜져 있을 때만 연결됩니다. Chrome을 종료하면 서버도 종료됩니다.
+      </p>
+    </details>
+    <script src="popup.js"></script>
+  </body>
+</html>
