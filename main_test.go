@@ -46,6 +46,9 @@ func TestHTTPGuards(t *testing.T) {
 		{"/pair", "localhost:8787", "127.0.0.1:10", "POST", "https://evil.test", `{}`, 403},
 		{"/pair", "localhost:8787", "127.0.0.1:10", "POST", "http://localhost:8787", `{"code":"wrong"}`, 401},
 		{"/pair", "localhost:8787", "127.0.0.1:10", "POST", "http://localhost:8787", `{"code":"` + r.code + `"}`, 200},
+		{"/session", "localhost:8787", "127.0.0.1:10", "POST", "https://evil.test", `{"key":"x"}`, 403},
+		{"/session", "localhost:8787", "127.0.0.1:10", "POST", "http://localhost:8787", `{"key":"wrong"}`, 401},
+		{"/session", "localhost:8787", "127.0.0.1:10", "POST", "http://localhost:8787", `{"key":"` + r.key + `"}`, 204},
 	} {
 		q := httptest.NewRequest(tc.method, "http://"+tc.host+tc.path, strings.NewReader(tc.body))
 		q.RemoteAddr = tc.remote
@@ -55,6 +58,75 @@ func TestHTTPGuards(t *testing.T) {
 		if w.Code != tc.want {
 			t.Errorf("%s: got %d want %d", tc.path, w.Code, tc.want)
 		}
+	}
+}
+func TestHostFollowsAddressChanges(t *testing.T) {
+	r := newRelay(8787, func(any) error { return nil })
+	defer r.close()
+	addrs := []string{"10.1.2.3"}
+	r.listAddrs = func() []string { return addrs }
+	r.mu.Lock()
+	r.refreshAddresses()
+	r.mu.Unlock()
+	if !r.validHost("10.1.2.3:8787") {
+		t.Fatal("current address rejected")
+	}
+	addrs = []string{"192.168.7.7"}
+	if r.validHost("192.168.7.7:8787") {
+		t.Fatal("re-scanned inside the one-second throttle")
+	}
+	r.mu.Lock()
+	r.refreshed = time.Time{}
+	r.mu.Unlock()
+	if !r.validHost("192.168.7.7:8787") {
+		t.Fatal("new address rejected without a restart")
+	}
+	if r.validHost("10.1.2.3:8787") {
+		t.Fatal("stale address still accepted")
+	}
+	r.mu.Lock()
+	links := r.setup()["links"].([]string)
+	r.mu.Unlock()
+	if len(links) != 1 || !strings.HasPrefix(links[0], "http://192.168.7.7:8787/") {
+		t.Fatal("setup links not refreshed", links)
+	}
+}
+func TestResumeAndRotate(t *testing.T) {
+	r := newRelay(0, func(any) error { return nil })
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+	defer r.close()
+	u, _ := url.Parse(srv.URL)
+	r.port, _ = strconv.Atoi(u.Port())
+	fresh := r.key
+	if r.receive(message{"type": json.RawMessage(`"hello"`), "key": json.RawMessage(`"not-a-key"`)}) == nil || r.key != fresh {
+		t.Fatal("malformed key must be ignored but hello still answered")
+	}
+	previous := token()
+	reply := r.receive(message{"type": json.RawMessage(`"hello"`), "key": json.RawMessage(`"` + previous + `"`)})
+	if r.key != previous || reply.(map[string]any)["key"] != previous {
+		t.Fatal("previous session key not resumed", reply)
+	}
+	if _, exposed := r.setup()["key"]; exposed {
+		t.Fatal("HTTP /setup must not expose the session key")
+	}
+	c, _, e := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/ws?role=phone&key="+previous, http.Header{"Origin": []string{srv.URL}})
+	if e != nil {
+		t.Fatal("resumed key rejected by /ws", e)
+	}
+	defer c.Close()
+	_ = c.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var m message
+	_ = c.ReadJSON(&m)
+	reply = r.receive(message{"type": json.RawMessage(`"rotate"`)})
+	if r.key == previous || reply.(map[string]any)["key"] != r.key {
+		t.Fatal("rotate must issue a new key", reply)
+	}
+	for e == nil {
+		_, _, e = c.ReadMessage()
+	}
+	if ce, ok := e.(*websocket.CloseError); !ok || ce.Code != 4002 {
+		t.Fatal("phone not closed with 4002 after rotate", e)
 	}
 }
 func TestRelayCommandsAndIsolation(t *testing.T) {
@@ -89,9 +161,13 @@ func TestRelayCommandsAndIsolation(t *testing.T) {
 	if e = c.ReadJSON(&m); e != nil || field(m, "error") == "" {
 		t.Fatal("offline ack missing", e)
 	}
-	r.receive(message{"type": json.RawMessage(`"state"`), "state": json.RawMessage(`{"ready":true}`), "catalog": json.RawMessage(`[]`)})
+	r.receive(message{"type": json.RawMessage(`"state"`), "state": json.RawMessage(`{"ready":true}`)})
 	_ = c.ReadJSON(&m)
 	_ = c.ReadJSON(&m)
+	r.receive(message{"type": json.RawMessage(`"catalog"`), "version": json.RawMessage(`3`), "catalog": json.RawMessage(`[{"id":"1","title":"One"}]`)})
+	if e = c.ReadJSON(&m); e != nil || field(m, "type") != "catalog" || string(m["version"]) != "3" {
+		t.Fatal("catalog not forwarded", m, e)
+	}
 	_ = c.WriteJSON(map[string]any{"type": "command", "id": "one", "command": "skipRecap", "unexpected": "drop"})
 	select {
 	case v := <-commands:
@@ -113,5 +189,17 @@ func TestRelayCommandsAndIsolation(t *testing.T) {
 	defer second.Close()
 	if _, _, e = c.ReadMessage(); e == nil {
 		t.Fatal("previous phone not closed")
+	}
+	// A newly connected phone receives status, the last state and the retained catalog.
+	_ = second.SetReadDeadline(time.Now().Add(3 * time.Second))
+	types := map[string]bool{}
+	for i := 0; i < 3; i++ {
+		if e = second.ReadJSON(&m); e != nil {
+			t.Fatal("replay missing", e)
+		}
+		types[field(m, "type")] = true
+	}
+	if !types["status"] || !types["state"] || !types["catalog"] {
+		t.Fatal("replay incomplete", types)
 	}
 }

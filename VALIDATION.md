@@ -1,4 +1,21 @@
-# Validation — v0.2.1
+# Validation — v0.3.0
+
+## v0.3.0 release verification (2026-09-19)
+
+- Go: eight tests pass, including reset during WebSocket upgrade (revoked
+  socket closes with 4002), request-triggered address refresh still notifying
+  the popup, and initialization returning 503 until hello. `go vet` passes.
+- Node: 22 pass, including the isolated CMD registry installation test. Tests use the newly
+  built EXE, not the older installed helper.
+- A real EXE test delays hello beyond the former one-second fallback and
+  verifies 503 before restoration and 204 for the same key afterwards.
+- Mocked extension events cover delayed storage completion after Stop,
+  reconnect cancellation and ten-attempt exhaustion, watch catalog retention,
+  stale document rejection and a genuinely empty search catalog.
+- Adapter tests distinguish unscanned watch catalogs from scanned empty lists.
+- Formatting passes. These changes have not been loaded into live Chrome or
+  validated on a physical phone. Go race detector was not run.
+- The historical v0.2.1 and live playback observations below remain unchanged.
 
 ## Installation update
 
