@@ -6,12 +6,32 @@ const source = await readFile(
   new URL("../extension/netflix-adapter.js", import.meta.url),
   "utf8",
 );
-function fixture({ intro = false, recap = false, ad = false } = {}) {
+function fixture({
+  intro = false,
+  recap = false,
+  ad = false,
+  cards = [],
+  clock = false,
+  player = true,
+  controllerNode = null,
+  broken = false,
+  pathname = "/watch/123",
+} = {}) {
   let time = 100000,
+    now = 1000000,
+    cardList = cards,
     listener;
   const messages = [],
     calls = [],
-    intervals = [];
+    intervals = [],
+    queries = [];
+  // Catalog cards as the adapter scans them from the browse page.
+  const anchors = () =>
+    cardList.map((c) => ({
+      href: `https://www.netflix.com/title/${c.id}`,
+      getAttribute: (k) => (k === "aria-label" ? c.title : null),
+      querySelector: () => ({ src: c.image || "", alt: c.title }),
+    }));
   const video = { currentTime: 100, seeking: false };
   const skip = {
     getClientRects: () => [{}],
@@ -23,7 +43,10 @@ function fixture({ intro = false, recap = false, ad = false } = {}) {
     getMovieId: () => 123,
     getCurrentTime: () => time,
     getDuration: () => 300000,
-    isPaused: () => true,
+    isPaused: () => {
+      if (broken) throw Error("boom");
+      return true;
+    },
     getVolume: () => 1,
     isMuted: () => false,
     getTimeCodes: () =>
@@ -47,7 +70,7 @@ function fixture({ intro = false, recap = false, ad = false } = {}) {
           playerApp: {
             getAPI: () => ({
               videoPlayer: {
-                getAllPlayerSessionIds: () => ["watch-test"],
+                getAllPlayerSessionIds: () => (player ? ["watch-test"] : []),
                 getVideoPlayerBySessionId: () => p,
               },
             }),
@@ -62,10 +85,17 @@ function fixture({ intro = false, recap = false, ad = false } = {}) {
       messages.push(m);
     },
   };
+  // A player root whose React fiber leads to the given controller instance.
+  const playerRoot = controllerNode && {
+    __reactFiber$test: { stateNode: controllerNode, return: null },
+  };
   const document = {
     title: "Test",
-    querySelector: (s) => (s === "video" ? video : null),
+    querySelector: (s) =>
+      s === "video" ? video : s === '[data-uia="player"]' ? playerRoot : null,
     querySelectorAll(s) {
+      queries.push(s);
+      if (s.startsWith("a[href")) return anchors();
       if (s.includes("player-skip-intro") && intro) return [skip];
       if (s.includes("player-skip-recap") && recap) return [skip];
       if (s.includes("ads-info-container") && ad) return [skip];
@@ -75,13 +105,14 @@ function fixture({ intro = false, recap = false, ad = false } = {}) {
   vm.runInNewContext(source, {
     window,
     document,
-    location: { pathname: "/watch/123", origin: "https://www.netflix.com" },
+    location: { pathname, origin: "https://www.netflix.com" },
     sessionStorage: { getItem: () => null },
     setTimeout,
     setInterval: (fn) => intervals.push(fn),
     clearInterval,
     URL,
-    Date,
+    // A frozen clock lets tests step past the adapter's 3-second scan throttle.
+    Date: clock ? { now: () => now } : Date,
     Promise,
     PointerEvent: class {},
   });
@@ -97,7 +128,22 @@ function fixture({ intro = false, recap = false, ad = false } = {}) {
         id: String(++id),
       },
     });
-  return { command, calls, messages, intervals, p };
+  const sync = () =>
+    listener({
+      source: window,
+      data: { source: "netflix-lan-content", type: "sync" },
+    });
+  return {
+    command,
+    sync,
+    calls,
+    messages,
+    intervals,
+    queries,
+    p,
+    advance: (ms) => (now += ms),
+    setCards: (list) => (cardList = list),
+  };
 }
 test("three rapid forward taps accumulate to thirty seconds", async () => {
   const f = fixture();
@@ -141,12 +187,107 @@ test("manual seek into intro is not overridden by auto skip", async () => {
 });
 test("recap button is independent of intro and blocked during ads", async () => {
   const f = fixture({ recap: true });
-  assert.equal(f.messages[0].state.canSkipRecap, true);
-  assert.equal(f.messages[0].state.canSkipIntro, false);
+  const first = f.messages.find((m) => m.type === "state");
+  assert.equal(first.state.canSkipRecap, true);
+  assert.equal(first.state.canSkipIntro, false);
   await f.command("skipRecap");
   assert.deepEqual(f.calls, ["click"]);
   const g = fixture({ recap: true, ad: true });
   await g.command("skipRecap");
   assert.deepEqual(g.calls, []);
   assert.ok(g.messages.find((m) => m.type === "ack").error);
+});
+test("catalog is sent only when it changes or on sync, never with each state", () => {
+  const f = fixture({
+    cards: [{ id: "80001", title: "Show One" }],
+    clock: true,
+    pathname: "/browse",
+  });
+  const catalogs = () => f.messages.filter((m) => m.type === "catalog");
+  const states = () => f.messages.filter((m) => m.type === "state");
+  assert.equal(catalogs().length, 1);
+  // Arrays cross the vm realm boundary, so compare by value, not prototype.
+  assert.equal(
+    catalogs()[0]
+      .catalog.map((c) => c.id)
+      .join(),
+    "80001",
+  );
+  assert.equal(catalogs()[0].version, 1);
+  assert.equal(states()[0].state.catalogVersion, 1);
+  f.advance(4000);
+  f.intervals[0]();
+  f.intervals[0]();
+  assert.ok(states().length >= 3);
+  assert.ok(states().every((m) => !("catalog" in m)));
+  assert.equal(catalogs().length, 1, "unchanged page must not resend");
+  f.sync();
+  assert.equal(catalogs().length, 2, "sync re-emits the current catalog");
+  assert.equal(catalogs()[1].version, 1);
+  f.setCards([
+    { id: "80001", title: "Show One" },
+    { id: "80002", title: "Show Two" },
+  ]);
+  f.advance(4000);
+  f.intervals[0]();
+  assert.equal(catalogs().length, 3, "changed page sends a new version");
+  assert.equal(catalogs()[2].version, 2);
+  assert.equal(catalogs()[2].catalog.length, 2);
+});
+test("title fallback tolerates a controller without React state", () => {
+  const f = fixture({
+    controllerNode: { getNextEpisodicData: () => ({ id: 81 }) },
+  });
+  const s = f.messages.find((m) => m.type === "state");
+  assert.ok(s, "state heartbeat must still be emitted");
+  assert.equal(s.state.title, "Test");
+  assert.equal(s.state.canNext, true);
+  assert.equal(s.state.warning, "");
+});
+
+test("catalog distinguishes unscanned watch document from empty browse results", () => {
+  const watch = fixture({ clock: true });
+  watch.sync();
+  const unknown = watch.messages.filter((m) => m.type === "catalog").at(-1);
+  assert.equal(unknown.available, false);
+  const browse = fixture({
+    clock: true,
+    pathname: "/search",
+    cards: [{ id: "1", title: "One" }],
+  });
+  browse.setCards([]);
+  browse.advance(4000);
+  browse.intervals[0]();
+  const empty = browse.messages.filter((m) => m.type === "catalog").at(-1);
+  assert.equal(empty.available, true);
+  assert.equal(empty.catalog.length, 0);
+});
+test("missing player API on a watch page is reported after a grace period", () => {
+  const f = fixture({ player: false, clock: true });
+  const last = () => f.messages.filter((m) => m.type === "state").at(-1).state;
+  assert.equal(last().ready, false);
+  assert.equal(last().warning, "");
+  f.advance(9000);
+  f.intervals[0]();
+  assert.match(last().warning, /player API not found/);
+});
+test("an adapter exception still produces a heartbeat carrying the error", () => {
+  const f = fixture({ broken: true });
+  const s = f.messages.find((m) => m.type === "state");
+  assert.ok(s, "heartbeat must survive a throwing player call");
+  assert.equal(s.state.ready, false);
+  assert.match(s.state.warning, /adapter error: boom/i);
+});
+test("button and fiber scans are skipped while no player is active", () => {
+  const f = fixture({ player: false });
+  f.queries.length = 0;
+  f.intervals[0]();
+  assert.ok(
+    !f.queries.some((q) => q.includes("player-skip") || q === "button"),
+    "idle page must not scan for player buttons: " + f.queries.join(","),
+  );
+  const g = fixture({ recap: true });
+  g.queries.length = 0;
+  g.intervals[0]();
+  assert.ok(g.queries.some((q) => q.includes("player-skip-recap")));
 });
