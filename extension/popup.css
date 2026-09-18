@@ -55,3 +55,10 @@ details {
   margin-top: 20px;
   color: #bfbfc8;
 }
+#rotate {
+  background: #38383e;
+}
+.note {
+  color: #bfbfc8;
+  font-size: 12px;
+}

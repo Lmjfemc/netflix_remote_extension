@@ -6,6 +6,9 @@
     lastSkip = 0,
     title = "",
     catalog = [],
+    catalogSignature = "",
+    catalogVersion = 0,
+    catalogReady = false,
     lastCatalog = 0;
   let seekTarget = null,
     seekTask = null,
@@ -47,13 +50,25 @@
   }
   // Netflix's own next button uses this controller's getNextEpisodicData.
   // Read only the title and next ID; never traverse account/authentication state.
+  // The fiber walk (Object.keys on a DOM node plus up to 30 parent hops) is
+  // cached per player element; a miss is retried every 3 s in case React had
+  // not mounted the controller yet.
+  let controllerCache = { node: null, instance: null, at: 0 };
   function controller() {
     const e = document.querySelector('[data-uia="player"]');
-    let f = e?.[Object.keys(e).find((k) => k.startsWith("__reactFiber"))];
+    if (!e) return null;
+    const c = controllerCache;
+    if (c.node === e && (c.instance || Date.now() - c.at < 3000))
+      return c.instance;
+    let f = e[Object.keys(e).find((k) => k.startsWith("__reactFiber"))],
+      instance = null;
     for (let i = 0; f && i < 30; i++, f = f.return)
-      if (typeof f.stateNode?.getNextEpisodicData === "function")
-        return f.stateNode;
-    return null;
+      if (typeof f.stateNode?.getNextEpisodicData === "function") {
+        instance = f.stateNode;
+        break;
+      }
+    controllerCache = { node: e, instance, at: Date.now() };
+    return instance;
   }
   function nextId() {
     try {
@@ -82,12 +97,36 @@
           image: a.querySelector("img")?.src || "",
         });
     }
-    if (found.size) catalog = [...found.values()].slice(0, 250);
+    catalogReady = true;
+    const next = [...found.values()].slice(0, 250);
+    // Compare a serialized signature so an unchanged page never re-sends the
+    // image-URL-heavy catalog down the native messaging / WebSocket chain.
+    const signature = JSON.stringify(next);
+    if (signature === catalogSignature) return false;
+    catalog = next;
+    catalogSignature = signature;
+    catalogVersion++;
+    return true;
+  }
+  let playerMissingSince = 0;
+  function diagnose(playingPage, p, v) {
+    // A watch page whose <video> exists but whose player API cannot be found
+    // for several seconds almost always means Netflix changed its internals.
+    // Say so on the phone instead of silently showing "Browse titles below".
+    if (playingPage && v && !p) {
+      if (!playerMissingSince) playerMissingSince = Date.now();
+      if (Date.now() - playerMissingSince > 8000)
+        return "Netflix player API not found. Netflix may have changed; refresh the tab or update the extension.";
+    } else playerMissingSince = 0;
+    return "";
   }
   function snapshot() {
     const p = player(),
       v = document.querySelector("video"),
-      playingPage = location.pathname.startsWith("/watch/");
+      playingPage = location.pathname.startsWith("/watch/"),
+      // Button and fiber scans only matter while a player is active. On the
+      // browse page the DOM is large and every answer would be "no" anyway.
+      active = !!p && !!v;
     const titleNode = document.querySelector('[data-uia="video-title"]');
     const t = titleNode
       ? titleNode.children.length
@@ -101,7 +140,7 @@
     else if (!playingPage) title = "";
     return {
       playingPage,
-      ready: !!p && !!v,
+      ready: active,
       paused: p ? p.isPaused() : true,
       time: p ? p.getCurrentTime() / 1000 : 0,
       duration: p ? p.getDuration() / 1000 : 0,
@@ -111,14 +150,16 @@
       muted: p ? p.isMuted() : false,
       title:
         title ||
-        controller()?.state.videoMetadata?.getTitle() ||
+        controller()?.state?.videoMetadata?.getTitle?.() ||
         document.title.replace(/ - (Netflix|넷플릭스)$/, ""),
       videoId: p ? String(p.getMovieId()) : null,
-      ad: ads(),
-      canSkipIntro: !!intro(),
-      canSkipRecap: !!recap(),
-      canNext: !!nextId() || !!next(),
+      ad: active && ads(),
+      canSkipIntro: active && !!intro(),
+      canSkipRecap: active && !!recap(),
+      canNext: active && (!!nextId() || !!next()),
       autoSkip,
+      catalogVersion,
+      warning: diagnose(playingPage, p, v),
       url: location.pathname,
       updatedAt: Date.now(),
     };
@@ -128,6 +169,15 @@
       { source: "netflix-lan-adapter", ...m },
       location.origin,
     );
+  // The catalog travels apart from the 750 ms state heartbeat: only when it
+  // changes, or when the extension asks for a resync after losing its copy.
+  const emitCatalog = () =>
+    emit({
+      type: "catalog",
+      version: catalogVersion,
+      catalog,
+      available: catalogReady && !location.pathname.startsWith("/watch/"),
+    });
   async function skipIntro() {
     const p = player();
     if (!intro() || ads()) throw Error("No intro skip button is available.");
@@ -159,21 +209,50 @@
   }
   function publish() {
     try {
-      if (Date.now() - lastCatalog > 3000) {
-        scan();
+      // Cards only exist off the watch page; skip the anchor scan there.
+      if (
+        !location.pathname.startsWith("/watch/") &&
+        Date.now() - lastCatalog > 3000
+      ) {
         lastCatalog = Date.now();
+        if (scan()) emitCatalog();
       }
       if (
         autoSkip &&
         !seekTask &&
+        player() &&
         !suppressAutoIntro() &&
         intro() &&
         !ads() &&
         Date.now() - lastSkip > 5000
       )
         skipIntro().catch(() => {});
-      emit({ type: "state", state: snapshot(), catalog });
-    } catch {}
+      emit({ type: "state", state: snapshot() });
+    } catch (err) {
+      // Never let one failing DOM/API call silence the heartbeat: the Go relay
+      // would report "Netflix is disconnected" after 6 s and the phone would
+      // lose every control. Send a minimal state that carries the error.
+      try {
+        emit({
+          type: "state",
+          state: {
+            playingPage: location.pathname.startsWith("/watch/"),
+            ready: false,
+            paused: true,
+            time: 0,
+            duration: 0,
+            volume: 1,
+            muted: false,
+            title: "",
+            autoSkip,
+            catalogVersion,
+            warning: "Netflix adapter error: " + (err?.message || err),
+            url: location.pathname,
+            updatedAt: Date.now(),
+          },
+        });
+      } catch {}
+    }
   }
   function seekTo(p, target, manual = true) {
     if (seekTask && seekMovie !== p.getMovieId())
@@ -326,12 +405,13 @@
   }
   window.addEventListener("message", async (e) => {
     const m = e.data;
-    if (
-      e.source !== window ||
-      m?.source !== "netflix-lan-content" ||
-      m.type !== "command"
-    )
+    if (e.source !== window || m?.source !== "netflix-lan-content") return;
+    if (m.type === "sync") {
+      emitCatalog();
+      publish();
       return;
+    }
+    if (m.type !== "command") return;
     try {
       await command(m);
       emit({ type: "ack", id: m.id });
