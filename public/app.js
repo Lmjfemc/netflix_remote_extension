@@ -1,12 +1,36 @@
 const $ = (id) => document.getElementById(id);
+// The session key lives in localStorage so a phone stays paired across tab
+// closes and helper restarts. Storage can be unavailable (private mode), so
+// every access is guarded and the page still works for one session.
+const store = {
+  get() {
+    try {
+      return localStorage.getItem("remote-key");
+    } catch {
+      return null;
+    }
+  },
+  set(v) {
+    try {
+      localStorage.setItem("remote-key", v);
+    } catch {}
+  },
+  clear() {
+    try {
+      localStorage.removeItem("remote-key");
+    } catch {}
+  },
+};
 let ws,
-  key = sessionStorage.getItem("remote-key"),
+  key = store.get(),
   state = {},
   online = false,
   stopped = false,
   dragging = false,
   catalogHash = "",
-  failedConnections = 0;
+  checking = false,
+  retryDelay = 2000,
+  retryTimer = null;
 function message(t) {
   $("message").textContent = t;
   clearTimeout(message.timer);
@@ -55,6 +79,9 @@ function render() {
   $("skip").disabled = !ready || s.ad || !s.canSkipIntro;
   $("recap").disabled = !ready || s.ad || !s.canSkipRecap;
   if (ready && s.seeking) $("detail").textContent = "Seeking…";
+  // Adapter self-diagnosis (player API missing, adapter exception) outranks
+  // the generic status line so the user learns why controls are disabled.
+  if (online && s.warning) $("detail").textContent = s.warning;
   if (!dragging) {
     const displayTime = s.seeking ? s.seekTarget : s.time;
     $("seek").max = s.duration || 1;
@@ -102,55 +129,100 @@ function cards(items) {
     $("cards").append(b);
   }
 }
-function connect() {
-  if (!key || ws?.readyState === 0 || ws?.readyState === 1) return;
+function setStatus(text, isOnline = false) {
+  $("status").textContent = text;
+  $("status").classList.toggle("online", isOnline);
+}
+// Forget the key and go back to the code form. Only called when the PC said
+// the key is invalid or the user unpaired, never because the PC was merely off.
+function showPairing(text) {
+  key = null;
+  store.clear();
+  online = false;
+  state = {};
+  $("remote").hidden = true;
+  $("pair").hidden = false;
+  setStatus("Not paired");
+  if (text) message(text);
+}
+function retry() {
+  if (stopped || retryTimer) return;
+  if (retryDelay === 2000)
+    message(
+      "Can't reach the PC. Retrying… To pair with a new code, tap Unpair.",
+    );
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    connect();
+  }, retryDelay);
+  retryDelay = Math.min(15000, retryDelay * 2);
+}
+async function connect() {
+  if (!key || checking || ws?.readyState === 0 || ws?.readyState === 1) return;
   $("pair").hidden = true;
   $("remote").hidden = false;
+  // Ask the PC whether this key is still valid before opening the socket. A
+  // failed WebSocket upgrade exposes no status code, so this is the only way
+  // to tell "PC is off, keep waiting" from "pairing was reset, ask for a code".
+  checking = true;
+  let verdict = null;
+  try {
+    const r = await fetch("/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    if (r.status === 204) verdict = true;
+    else if (r.status === 401) verdict = false;
+  } catch {}
+  checking = false;
+  if (stopped) return;
+  if (verdict === false) {
+    showPairing("Pairing was reset on the PC. Enter the new code.");
+    return;
+  }
+  if (verdict === null) {
+    setStatus("Looking for PC…");
+    retry();
+    return;
+  }
   ws = new WebSocket(
     `ws://${location.host}/ws?role=phone&key=${encodeURIComponent(key)}`,
   );
   ws.onopen = () => {
-    failedConnections = 0;
+    retryDelay = 2000;
   };
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
     if (m.type === "status") {
       online = m.pc;
-      $("status").textContent = online ? "● PC connected" : "Waiting for PC";
-      $("status").classList.toggle("online", online);
+      setStatus(online ? "● PC connected" : "Waiting for PC", online);
       render();
     }
     if (m.type === "state") {
       state = m.state;
-      cards(m.catalog || []);
       render();
     }
+    if (m.type === "catalog") cards(m.catalog || []);
     if (m.type === "ack" && m.error) message(m.error);
   };
   ws.onclose = (e) => {
     online = false;
     render();
-    $("status").textContent = "Disconnected";
-    $("status").classList.remove("online");
+    setStatus("Disconnected");
     if (e.code === 4001) {
       stopped = true;
       message("Another phone connected. Pair again to take control.");
-    }
-    if (++failedConnections >= 3 && !stopped) {
-      key = null;
-      sessionStorage.removeItem("remote-key");
-      $("remote").hidden = true;
-      $("pair").hidden = false;
-      message("Reconnect with the current code on your PC.");
       return;
     }
-    if (!stopped) setTimeout(connect, 2000);
+    if (e.code === 4002) {
+      showPairing("Pairing was reset on the PC. Enter the new code.");
+      return;
+    }
+    retry();
   };
-  ws.onerror = () => {
-    message(
-      "Connection failed. Check Wi-Fi and the PC server. If restarted, unpair and enter the new code.",
-    );
-  };
+  // onclose follows every error and owns the retry; no toast per attempt.
+  ws.onerror = () => {};
 }
 async function pair(code) {
   try {
@@ -162,7 +234,9 @@ async function pair(code) {
     const data = await r.json();
     if (!r.ok) throw Error(data.error);
     key = data.key;
-    sessionStorage.setItem("remote-key", key);
+    store.set(key);
+    stopped = false;
+    retryDelay = 2000;
     history.replaceState(null, "", location.pathname);
     connect();
   } catch (e) {
@@ -200,8 +274,9 @@ $("searchForm").onsubmit = (e) => {
 };
 $("disconnect").onclick = () => {
   stopped = true;
+  clearTimeout(retryTimer);
   ws?.close();
-  sessionStorage.removeItem("remote-key");
+  store.clear();
   location.assign("/");
 };
 $("recap").onclick = () => command("skipRecap");
@@ -211,5 +286,11 @@ if (code) {
   pair(code);
 } else connect();
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && !stopped && key && ws?.readyState === 3) connect();
+  if (document.hidden || stopped || !key) return;
+  // Coming back to the foreground: reconnect right away rather than waiting
+  // out whatever backoff was pending while the phone slept.
+  clearTimeout(retryTimer);
+  retryTimer = null;
+  retryDelay = 2000;
+  if (!ws || ws.readyState === 3) connect();
 });
