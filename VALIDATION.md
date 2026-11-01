@@ -1,4 +1,15 @@
-# Validation — v0.3.0
+# Validation — v0.3.1
+
+## v0.3.1 live validation (2026-11-01)
+
+- Release build: Go tests and vet pass; Node 23 pass, one opt-in installer test skipped; formatting passes.
+- Ending button layout checked at 390px mobile viewport; fixed +80s content jump, disabled during ads.
+
+- Reproduced pre-fix wrong-direction -10s after actual preroll (+21.032s) and midroll (+22.033s).
+- Fixed extension through actual web remote / WebSocket / Go / extension path: preroll -10s and +10s exact, three taps +30s exact, scrub to content 60.000s.
+- Actual midroll boundary: content 631.907 -> 621.908 -> 631.909 seconds; no timeout or ad replay. Raw video clock changed independently across the ad boundary.
+- Phone UI tested in desktop browser; no claim of physical-phone testing for this version.
+
 
 ## v0.3.0 release verification (2026-09-19)
 

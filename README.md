@@ -19,6 +19,7 @@
 | 재생 상태 동기화 | 작품·에피소드 제목, 재생 위치, 길이, 재생/일시정지 상태 표시 |
 | 재생·일시정지 | 휴대폰 버튼으로 PC 플레이어 제어 |
 | ±10초·스크러빙 | 연속 탭을 누적하고 타임라인으로 원하는 위치 탐색 |
+| 엔딩 +80초 | 인트로·줄거리 버튼 아래에서 콘텐츠를 80초 앞으로 이동. 엔딩이나 쿠키 위치를 자동 판별하지 않음 |
 | 음량·음소거 | Netflix 플레이어 음량과 음소거 제어 |
 | 전체 화면 | Chrome 창의 전체 화면을 켜고 이전 창 상태로 복원 |
 | 인트로 건너뛰기 | Netflix가 제공할 때 수동 또는 자동으로 실행 |
@@ -43,7 +44,7 @@ Go EXE 안에 휴대폰 웹페이지가 포함되어 있습니다. 외부 웹 �
 
 ### 1. 배포 파일 받기
 
-[Releases](https://github.com/Lmjfemc/netflix_remote_extension/releases)에서 최신 Windows x64 전체 ZIP을 내려받아 압축을 **모두** 풉니다. v0.3.0 파일명은 `netflix-lan-remote-v0.3.0-windows-amd64.zip`입니다.
+[Releases](https://github.com/Lmjfemc/netflix_remote_extension/releases)에서 최신 Windows x64 전체 ZIP을 내려받아 압축을 **모두** 풉니다. v0.3.1 파일명은 `netflix-lan-remote-v0.3.1-windows-amd64.zip`입니다.
 
 `install.cmd`, `uninstall.cmd`, `native-host.json`, `dist/netflix-remote.exe`, `extension/`이 함께 있어야 합니다. 사용자는 **Go·Node·PowerShell을 설치하거나 실행할 필요가 없습니다.**
 

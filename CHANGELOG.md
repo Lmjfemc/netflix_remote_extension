@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 — 2026-11-01
+
+- Add an ending +80 seconds button below intro/recap controls, disabled during ads. This is a fixed content-time jump, not automatic ending detection.
+- Fix wrong-direction and oversized seeks after advertising by using Netflix's own content timeline and playback seek action for relative jumps, scrubbing, skip markers and displayed position.
+- Verify seek completion against content time instead of the advertising-inclusive video clock. Refuse raw seeking when ads exist but the content timeline is unavailable.
+- Add ad-offset regression coverage; validate actual preroll and midroll jumps on Netflix. Update both extension and Go helper: the phone UI is embedded in the EXE.
+
 ## 0.3.0 — 2026-09-19
 
 - Review fixes: reject revoked WebSocket keys again after upgrade; return
