@@ -340,3 +340,7 @@ footer button {
 #recap {
   grid-column: auto;
 }
+
+#ending {
+  grid-column: span 2;
+}

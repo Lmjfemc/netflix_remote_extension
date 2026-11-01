@@ -72,7 +72,8 @@ function render() {
   $("play").textContent = s.paused ? "▶" : "Ⅱ";
   $("play").setAttribute("aria-label", s.paused ? "Play" : "Pause");
   $("play").disabled = !ready;
-  for (const id of ["back", "forward", "seek"]) $(id).disabled = !ready || s.ad;
+  for (const id of ["back", "forward", "seek", "ending"])
+    $(id).disabled = !ready || s.ad;
   for (const id of ["volume", "mute"]) $(id).disabled = !ready;
   for (const id of ["fullscreen", "browse", "auto"]) $(id).disabled = !online;
   $("next").disabled = !ready || s.ad || !s.canNext;
@@ -250,6 +251,7 @@ $("pairForm").onsubmit = (e) => {
 $("play").onclick = () => command(state.paused ? "play" : "pause");
 $("back").onclick = () => command("seekBy", -10);
 $("forward").onclick = () => command("seekBy", 10);
+$("ending").onclick = () => command("seekBy", 80);
 $("seek").oninput = () => {
   dragging = true;
   $("elapsed").textContent = format($("seek").value);
