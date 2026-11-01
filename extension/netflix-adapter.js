@@ -70,6 +70,37 @@
     controllerCache = { node: e, instance, at: Date.now() };
     return instance;
   }
+  // Netflix's own +/-10 controls use playbackState (content time), not the
+  // raw videoPlayer clock, which includes inserted advertising segments.
+  function timeline(p) {
+    const c = controller(),
+      s = c?.state?.playbackState;
+    if (
+      s &&
+      String(s.videoId) === String(p.getMovieId()) &&
+      Number.isFinite(s.currentTime) &&
+      Number.isFinite(s.duration) &&
+      typeof c.playbackActions?.seek === "function"
+    )
+      return {
+        time: s.currentTime,
+        duration: s.duration,
+        seek: (target) => c.playbackActions.seek(target),
+        controller: c,
+      };
+    // Never guess an advertising offset: Netflix can clear ad durations after
+    // playback. Refuse seeking until its content timeline is available.
+    if (p.getAdManager?.()?.hasAds?.())
+      throw Error(
+        "Netflix content timeline unavailable. Refresh Netflix and try again.",
+      );
+    return {
+      time: p.getCurrentTime(),
+      duration: p.getDuration(),
+      seek: (target) => p.seek(target),
+      controller: null,
+    };
+  }
   function nextId() {
     try {
       const id = controller()?.getNextEpisodicData()?.id;
@@ -142,8 +173,8 @@
       playingPage,
       ready: active,
       paused: p ? p.isPaused() : true,
-      time: p ? p.getCurrentTime() / 1000 : 0,
-      duration: p ? p.getDuration() / 1000 : 0,
+      time: p ? timeline(p).time / 1000 : 0,
+      duration: p ? timeline(p).duration / 1000 : 0,
       seekTarget: seekTarget === null ? null : seekTarget / 1000,
       seeking: seekTarget !== null,
       volume: p ? p.getVolume() : 1,
@@ -181,7 +212,7 @@
   async function skipIntro() {
     const p = player();
     if (!intro() || ads()) throw Error("No intro skip button is available.");
-    const now = p.getCurrentTime();
+    const now = timeline(p).time;
     const marker = p
       .getTimeCodes?.()
       .find(
@@ -197,7 +228,7 @@
   function suppressAutoIntro() {
     if (!manualIntro) return false;
     const p = player(),
-      now = seekTarget ?? p?.getCurrentTime();
+      now = seekTarget ?? (p ? timeline(p).time : null);
     if (
       p?.getMovieId() === manualIntro.movie &&
       now >= manualIntro.start &&
@@ -261,7 +292,7 @@
       );
     seekTarget = Math.max(
       0,
-      Math.min(Math.max(0, p.getDuration() - 1000), target),
+      Math.min(Math.max(0, timeline(p).duration - 1000), target),
     );
     seekMovie = p.getMovieId();
     if (manual) {
@@ -291,7 +322,8 @@
             const target = seekTarget;
             if (player()?.getMovieId() !== seekMovie || ads())
               throw Error("Playback changed during seeking.");
-            await p.seek(target);
+            const transport = timeline(p);
+            await transport.seek(target);
             while (true) {
               await new Promise((r) => setTimeout(r, 60));
               const v = document.querySelector("video");
@@ -299,8 +331,8 @@
                 throw Error("Playback changed during seeking.");
               if (
                 !v?.seeking &&
-                Math.abs(p.getCurrentTime() - target) < 1200 &&
-                (!v || Math.abs(v.currentTime * 1000 - target) < 1200)
+                timeline(p).controller === transport.controller &&
+                Math.abs(timeline(p).time - target) < 1200
               )
                 break;
               if (Date.now() > deadline)
@@ -365,7 +397,7 @@
           p,
           m.command === "seek"
             ? finite(m.value) * 1000
-            : (seekTarget ?? p.getCurrentTime()) + finite(m.value) * 1000,
+            : (seekTarget ?? timeline(p).time) + finite(m.value) * 1000,
         );
         break;
       case "volume":
@@ -380,7 +412,7 @@
       case "skipRecap": {
         const b = recap();
         if (!b || ads()) throw Error("No recap skip button is available.");
-        const now = p.getCurrentTime(),
+        const now = timeline(p).time,
           marker = p
             .getTimeCodes?.()
             .find(
