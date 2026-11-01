@@ -291,3 +291,50 @@ test("button and fiber scans are skipped while no player is active", () => {
   g.intervals[0]();
   assert.ok(g.queries.some((q) => q.includes("player-skip-recap")));
 });
+
+test("content timeline drives seeks after ads even when raw clock includes them", async () => {
+  const c = {
+    getNextEpisodicData: () => null,
+    state: {
+      playbackState: { videoId: 123, currentTime: 100000, duration: 300000 },
+    },
+    playbackActions: {},
+  };
+  const f = fixture({ controllerNode: c });
+  const rawSeek = f.p.seek;
+  f.p.getCurrentTime = () => c.state.playbackState.currentTime + 32032;
+  f.p.seek = () => {
+    throw Error("raw seek must not be used");
+  };
+  c.playbackActions.seek = (target) => {
+    rawSeek(target + 32032);
+    setTimeout(() => {
+      c.state.playbackState.currentTime = target;
+    }, 90);
+  };
+  await f.command("seekBy", -10);
+  assert.equal(c.state.playbackState.currentTime, 90000);
+  assert.equal(f.calls[0], 122032);
+  await Promise.all([
+    f.command("seekBy", 10),
+    f.command("seekBy", 10),
+    f.command("seekBy", 10),
+  ]);
+  assert.equal(c.state.playbackState.currentTime, 120000);
+  await f.command("seek", 42);
+  assert.equal(c.state.playbackState.currentTime, 42000);
+  const state = f.messages.filter((m) => m.type === "state").at(-1).state;
+  assert.equal(state.time, 42);
+  assert.equal(f.messages.filter((m) => m.type === "ack" && m.error).length, 0);
+});
+
+test("ad-bearing player without content timeline refuses raw seeking", async () => {
+  const f = fixture();
+  f.p.getAdManager = () => ({ hasAds: () => true });
+  await f.command("seekBy", -10);
+  assert.equal(f.calls.length, 0);
+  assert.match(
+    f.messages.find((m) => m.type === "ack").error,
+    /content timeline unavailable/,
+  );
+});
